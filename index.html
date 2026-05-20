@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manajemen Lembur & Cuti</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --navy:#1E3A5F;--green:#1A3A2A;--navy-light:#EBF4FA;--green-light:#EAFAF1;
+    --text:#1a1a2e;--text2:#64748b;--text3:#94a3b8;
+    --border:#e2e8f0;--bg:#f8fafc;--white:#fff;
+    --danger:#ef4444;--warn:#f59e0b;--success:#10b981;
+  }
+  body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  
+  .app{max-width:1200px;margin:0 auto;padding:24px 20px}
+  
+  .header{background:linear-gradient(135deg,var(--navy) 0%,#2d5a8e 100%);border-radius:16px;padding:28px 32px;margin-bottom:24px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+  .header-title{font-size:22px;font-weight:600;letter-spacing:-0.3px}
+  .header-sub{font-size:13px;opacity:.75;margin-top:4px}
+  .header-date{font-size:12px;background:rgba(255,255,255,.15);padding:6px 14px;border-radius:20px}
+  
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px}
+  .stat-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:16px;transition:transform .2s}
+  .stat-card:hover{transform:translateY(-2px)}
+  .stat-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:10px}
+  .stat-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+  .stat-val{font-size:18px;font-weight:600;color:var(--text)}
+  
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+  .tab-group{display:flex;background:var(--white);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .tab-btn{padding:9px 20px;border:none;background:none;cursor:pointer;font-size:13px;font-family:inherit;font-weight:500;color:var(--text2);transition:all .2s;display:flex;align-items:center;gap:6px}
+  .tab-btn.active{background:var(--navy);color:#fff}
+  .tab-btn.active.cuti{background:var(--green)}
+  
+  .search-wrap{position:relative;flex:1;min-width:180px}
+  .search-wrap input{width:100%;padding:9px 12px 9px 36px;border:1px solid var(--border);border-radius:10px;font-size:13px;font-family:inherit;background:var(--white)}
+  .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:16px}
+  
+  .btn{padding:9px 16px;border-radius:10px;border:1px solid var(--border);cursor:pointer;font-size:13px;font-family:inherit;font-weight:500;display:inline-flex;align-items:center;gap:6px;transition:all .2s;background:var(--white);color:var(--text)}
+  .btn:hover{background:var(--bg)}
+  .btn-primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .btn-primary:hover{background:#163055}
+  .btn-green{background:var(--green);color:#fff;border-color:var(--green)}
+  .btn-green:hover{background:#0f2619}
+  .btn-danger{color:var(--danger);border:none;background:none;padding:6px;border-radius:6px}
+  .btn-danger:hover{background:#fef2f2}
+  .btn-edit{color:var(--navy);border:none;background:none;padding:6px;border-radius:6px}
+  .btn-edit:hover{background:var(--navy-light)}
+  
+  .card{background:var(--white);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:12px}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead tr{background:#f1f5f9}
+  th{padding:11px 14px;text-align:left;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;border-bottom:1px solid var(--border)}
+  td{padding:11px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#fafbff}
+  tfoot tr{background:#f8fafc;font-weight:600}
+  
+  .badge{display:inline-block;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
+  .badge-dept{background:var(--navy-light);color:var(--navy)}
+  .badge-disetujui{background:#d1fae5;color:#065f46}
+  .badge-pending{background:#fef3c7;color:#92400e}
+  .badge-ditolak{background:#fee2e2;color:#991b1b}
+  .badge-jenis{background:#f0f4ff;color:#3730a3;font-size:11px;padding:3px 10px;border-radius:20px}
+  
+  .mono{font-family:monospace;font-size:12px;color:var(--text)}
+  .bold{font-weight:600}
+  .center{text-align:center}
+  .right{text-align:right}
+  
+  .empty{padding:48px;text-align:center;color:var(--text3)}
+  .empty-icon{font-size:40px;margin-bottom:12px;opacity:.4}
+  .empty-text{font-size:14px}
+  
+  .footnote{font-size:12px;color:var(--text3);margin-top:10px;display:flex;align-items:center;gap:6px}
+  
+  /* Modal */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+  .overlay.open{opacity:1;pointer-events:all}
+  .modal{background:var(--white);border-radius:16px;padding:0;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;transform:scale(.95) translateY(10px);transition:transform .25s;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .overlay.open .modal{transform:scale(1) translateY(0)}
+  .modal-header{padding:20px 24px 0;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);padding-bottom:16px;position:sticky;top:0;background:var(--white);z-index:1;border-radius:16px 16px 0 0}
+  .modal-title{font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .modal-body{padding:20px 24px}
+  .modal-footer{padding:0 24px 20px;display:flex;gap:8px;justify-content:flex-end}
+  .close-btn{background:none;border:none;cursor:pointer;font-size:20px;color:var(--text2);line-height:1;padding:4px}
+  
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .form-group{display:flex;flex-direction:column;gap:5px}
+  .form-group.full{grid-column:1/-1}
+  label{font-size:12px;font-weight:500;color:var(--text2)}
+  .req{color:var(--danger)}
+  input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;background:var(--white);color:var(--text);transition:border-color .2s}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(30,58,95,.1)}
+  textarea{resize:vertical;min-height:64px}
+  .calc-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between}
+  .calc-label{font-size:12px;color:var(--text2)}
+  .calc-val{font-size:16px;font-weight:600;color:var(--text)}
+  
+  .toast{position:fixed;bottom:24px;right:24px;background:#1e293b;color:#fff;padding:12px 20px;border-radius:10px;font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;display:flex;align-items:center;gap:8px}
+  .toast.show{transform:translateY(0);opacity:1}
+  
+  @media(max-width:600px){
+    .form-grid{grid-template-columns:1fr}
+    .form-group.full{grid-column:auto}
+    .header{padding:20px}
+    .header-title{font-size:18px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div>
+      <div class="header-title">🏢 Manajemen Lembur & Cuti</div>
+      <div class="header-sub">Formulir pengisian data karyawan · Export ke Excel</div>
+    </div>
+    <div class="header-date" id="headerDate"></div>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="toolbar">
+    <div class="tab-group">
+      <button class="tab-btn active" id="tabLembur" onclick="switchTab('lembur')">⏰ Lembur</button>
+      <button class="tab-btn" id="tabCuti" onclick="switchTab('cuti')">🗓️ Cuti</button>
+    </div>
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Cari nama..." oninput="renderTable()">
+    </div>
+    <button class="btn btn-primary" id="addBtn" onclick="openModal()">➕ Tambah Data</button>
+    <button class="btn" onclick="exportExcel()">⬇️ Export Excel</button>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table id="dataTable">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+        <tfoot id="tableFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="footnote" id="footnote"></div>
+</div>
+
+<div class="overlay" id="overlay" onclick="handleOverlayClick(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle"></div>
+      <button class="close-btn" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Batal</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveData()">✓ Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DEPT = ["IT", "HRD", "DAIFUKU", "KANEMATSU", "TTSI"];
+const JENIS_CUTI = ["Cuti Tahunan","Cuti Sakit","Cuti Melahirkan","Cuti Besar","Cuti Darurat","Cuti Haji"];
+const STATUS_CUTI = ["Pending","Disetujui","Ditolak"];
+
+// Daftar Hari Libur Nasional Indonesia Tahun 2026 (Format: YYYY-MM-DD)
+const HARI_LIBUR_2026 = [
+  "2026-01-01", // Tahun Baru 2026 Masehi
+  "2026-01-17", // Isra Mikraj Nabi Muhammad SAW
+  "2026-02-17", // Tahun Baru Imlek 2577 Kongzili
+  "2026-03-19", // Hari Suci Nyepi (Tahun Baru Saka 1948)
+  "2026-03-20", // Hari Raya Idul Fitri 1447 Hijriah (Hari 1)
+  "2026-03-21", // Hari Raya Idul Fitri 1447 Hijriah (Hari 2)
+  "2026-04-03", // Wafat Yesus Kristus
+  "2026-04-05", // Hari Paskah
+  "2026-05-01", // Hari Buruh Internasional
+  "2026-05-14", // Kenaikan Yesus Kristus
+  "2026-05-22", // Hari Raya Waisak 2570 BE
+  "2026-06-01", // Hari Lahir Pancasila
+  "2026-05-27", // Hari Raya Idul Adha 1447 Hijriah
+  "2026-06-16", // Tahun Baru Islam 1448 Hijriah
+  "2026-08-17", // Hari Kemerdekaan RI
+  "2026-08-25", // Maulid Nabi Muhammad SAW
+  "2026-12-25"  // Hari Raya Natal
+];
+
+let activeTab = 'lembur';
+let editIdx = -1;
+
+let lemburData = [
+  {nama:"Mery",dept:"IT",jabatan:"Staff IT",tanggal:"2025-05-01",mulai:"18:00",selesai:"22:00"},
+];
+let cutiData = [
+  {nama:"Mery",dept:"IT",jabatan:"Staff IT",jenis:"Cuti Tahunan",mulai:"2026-03-18",selesai:"2026-03-24",sisa:"9",ket:"Keperluan Keluarga",status:"Disetujui"},
+];
+
+function calcJam(m,s){
+  if(!m||!s)return 0;
+  const [sh,sm]=m.split(':').map(Number);
+  const [eh,em]=s.split(':').map(Number);
+  let d=(eh*60+em)-(sh*60+sm);
+  if(d<0)d+=1440;
+  return d/60;
+}
+
+// Fungsi Hitung Hari Kerja (Mengecualikan Sabtu, Minggu, & Tanggal Merah)
+function calcHari(s,e){
+  if(!s||!e)return 0;
+  let start = new Date(s);
+  let end = new Date(e);
+  if(start > end) return 0;
+
+  let count = 0;
+  let cur = new Date(start);
+
+  while(cur <= end){
+    let dayOfWeek = cur.getDay(); // 0 = Minggu, 6 = Sabtu
+    let dateStr = cur.toISOString().split('T')[0];
+
+    // Jika bukan Sabtu(6), Minggu(0) dan tidak terdaftar di Hari Libur Nasional
+    if(dayOfWeek !== 0 && dayOfWeek !== 6 && !HARI_LIBUR_2026.includes(dateStr)){
+      count++;
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+function fmtRp(n){return'Rp '+Number(n).toLocaleString('id-ID')}
+function fmtDate(d){
+  if(!d)return'—';
+  return new Date(d).toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'});
+}
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent='✓ '+msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+function updateHeader(){
+  document.getElementById('headerDate').textContent=new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+}
+
+function renderStats(){
+  const totalJam=lemburData.reduce((s,r)=>s+calcJam(r.mulai,r.selesai),0);
+  const totalHari=cutiData.reduce((s,r)=>s+calcHari(r.mulai,r.selesai),0);
+  const disetujui=cutiData.filter(r=>r.status==='Disetujui').length;
+  const stats=[
+    {icon:'⏰',label:'Total Jam Lembur',val:totalJam.toFixed(1)+' jam',bg:'#EBF4FA',ic:'#1E3A5F'},
+    {icon:'📅',label:'Total Hari Cuti (Kerja)',val:totalHari+' hari',bg:'#EAFAF1',ic:'#1A3A2A'},
+    {icon:'✅',label:'Cuti Disetujui',val:disetujui+' pengajuan',bg:'#EAFAF1',ic:'#1A3A2A'},
+  ];
+  document.getElementById('stats').innerHTML=stats.map(s=>`
+    <div class="stat-card">
+      <div class="stat-icon" style="background:${s.bg};color:${s.ic}">${s.icon}</div>
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-val">${s.val}</div>
+    </div>`).join('');
+}
+
+function switchTab(tab){
+  activeTab=tab;
+  document.getElementById('searchInput').value='';
+  document.getElementById('tabLembur').className='tab-btn'+(tab==='lembur'?' active':'');
+  document.getElementById('tabCuti').className='tab-btn cuti'+(tab==='cuti'?' active':'');
+  document.getElementById('addBtn').textContent=tab==='lembur'?'➕ Tambah Lembur':'➕ Ajukan Cuti';
+  document.getElementById('addBtn').className='btn '+(tab==='lembur'?'btn-primary':'btn-green');
+  renderTable();
+}
+
+function renderTable(){
+  const q=(document.getElementById('searchInput').value||'').toLowerCase();
+  const data=activeTab==='lembur'?lemburData:cutiData;
+  const filtered=data.filter(r=>r.nama.toLowerCase().includes(q));
+
+  if(activeTab==='lembur'){
+    document.getElementById('tableHead').innerHTML=`<tr>${['No','Nama Karyawan','Departemen','Jabatan','Tanggal','Jam Mulai','Jam Selesai','Total Jam','Aksi'].map(h=>`<th>${h}</th>`).join('')}</tr>`;
+    let totalJam=0;
+    document.getElementById('tableBody').innerHTML=filtered.length===0
+      ?`<tr><td colspan="9"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Belum ada data lembur</div></div></td></tr>`
+      :filtered.map((r,i)=>{
+        const jam=calcJam(r.mulai,r.selesai);
+        totalJam+=jam;
+        const origIdx=lemburData.indexOf(r);
+        return`<tr>
+          <td class="center" style="color:#94a3b8">${i+1}</td>
+          <td class="bold">${r.nama}</td>
+          <td><span class="badge badge-dept">${r.dept}</span></td>
+          <td style="color:#64748b">${r.jabatan||'—'}</td>
+          <td>${fmtDate(r.tanggal)}</td>
+          <td class="mono">${r.mulai}</td>
+          <td class="mono">${r.selesai}</td>
+          <td class="bold">${jam.toFixed(2)} jam</td>
+          <td>
+            <button class="btn-edit" title="Edit" onclick="openEdit(${origIdx})">✏️</button>
+            <button class="btn-danger" title="Hapus" onclick="deleteRow(${origIdx})">🗑️</button>
+          </td></tr>`;
+      }).join('');
+    document.getElementById('tableFoot').innerHTML=filtered.length>0?`<tr>
+      <td colspan="7" class="right">Total</td>
+      <td class="bold">${totalJam.toFixed(2)} jam</td><td></td></tr>`:'';
+  } else {
+    document.getElementById('tableHead').innerHTML=`<tr>${['No','Nama','Departemen','Jenis Cuti','Tgl Mulai','Tgl Selesai','Hari Kerja','Keterangan','Status','Aksi'].map(h=>`<th>${h}</th>`).join('')}</tr>`;
+    let totalHari=0;
+    document.getElementById('tableBody').innerHTML=filtered.length===0
+      ?`<tr><td colspan="10"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Belum ada data cuti</div></div></td></tr>`
+      :filtered.map((r,i)=>{
+        const hari=calcHari(r.mulai,r.selesai);
+        totalHari+=hari;
+        const origIdx=cutiData.indexOf(r);
+        const sBadge=r.status==='Disetujui'?'badge-disetujui':r.status==='Pending'?'badge-pending':'badge-ditolak';
+        return`<tr>
+          <td class="center" style="color:#94a3b8">${i+1}</td>
+          <td class="bold">${r.nama}</td>
+          <td><span class="badge badge-dept">${r.dept}</span></td>
+          <td><span class="badge badge-jenis">${r.jenis}</span></td>
+          <td>${fmtDate(r.mulai)}</td>
+          <td>${fmtDate(r.selesai)}</td>
+          <td class="bold center">${hari} hari</td>
+          <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.ket||''}">${r.ket||'—'}</td>
+          <td><span class="badge ${sBadge}">${r.status}</span></td>
+          <td>
+            <button class="btn-edit" title="Edit" onclick="openEdit(${origIdx})">✏️</button>
+            <button class="btn-danger" title="Hapus" onclick="deleteRow(${origIdx})">🗑️</button>
+          </td></tr>`;
+      }).join('');
+    document.getElementById('tableFoot').innerHTML=filtered.length>0?`<tr>
+      <td colspan="6" class="right">Total</td>
+      <td class="bold center">${totalHari} hari</td>
+      <td colspan="3"></td></tr>`:'';
+  }
+  const cnt=activeTab==='lembur'?lemburData.length:cutiData.length;
+  document.getElementById('footnote').innerHTML=`<span>📊</span> ${cnt} data tersimpan · Klik "Export Excel" untuk mengunduh file .xlsx`;
+}
+
+function openModal(idx=-1){
+  editIdx=idx;
+  const isEdit=idx>=0;
+  const data=activeTab==='lembur'?(isEdit?lemburData[idx]:{}):( isEdit?cutiData[idx]:{});
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('modalTitle').innerHTML=(activeTab==='lembur'?'⏰ ':'🗓️ ')+(isEdit?'Edit':'Tambah')+' Data '+(activeTab==='lembur'?'Lembur':'Cuti');
+  document.getElementById('saveBtn').style.background=activeTab==='lembur'?'var(--navy)':'var(--green)';
+  document.getElementById('saveBtn').style.borderColor=activeTab==='lembur'?'var(--navy)':'var(--green)';
+
+  if(activeTab==='lembur'){
+    document.getElementById('modalBody').innerHTML=`
+      <div class="form-grid">
+        <div class="form-group full"><label>Nama Karyawan <span class="req">*</span></label><input id="f_nama" placeholder="Nama lengkap" value="${data.nama||''}"></div>
+        <div class="form-group"><label>Departemen <span class="req">*</span></label><select id="f_dept"><option value="">-- Pilih --</option>${DEPT.map(d=>`<option${data.dept===d?' selected':''}>${d}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Jabatan</label><input id="f_jabatan" placeholder="Jabatan" value="${data.jabatan||''}"></div>
+        <div class="form-group full"><label>Tanggal Lembur <span class="req">*</span></label><input type="date" id="f_tanggal" value="${data.tanggal||''}"></div>
+        <div class="form-group"><label>Jam Mulai <span class="req">*</span></label><input type="time" id="f_mulai" value="${data.mulai||''}" oninput="updateCalc()"></div>
+        <div class="form-group"><label>Jam Selesai <span class="req">*</span></label><input type="time" id="f_selesai" value="${data.selesai||''}" oninput="updateCalc()"></div>
+        <div class="form-group full">
+          <label>Kalkulasi Otomatis</label>
+          <div class="calc-box"><span class="calc-label" id="calcLabel">Isi jam mulai & selesai</span><span class="calc-val" id="calcVal">—</span></div>
+        </div>
+      </div>`;
+    updateCalc();
+  } else {
+    document.getElementById('modalBody').innerHTML=`
+      <div class="form-grid">
+        <div class="form-group full"><label>Nama Karyawan <span class="req">*</span></label><input id="f_nama" placeholder="Nama lengkap" value="${data.nama||''}"></div>
+        <div class="form-group"><label>Departemen <span class="req">*</span></label><select id="f_dept"><option value="">-- Pilih --</option>${DEPT.map(d=>`<option${data.dept===d?' selected':''}>${d}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Jabatan</label><input id="f_jabatan" placeholder="Jabatan" value="${data.jabatan||''}"></div>
+        <div class="form-group"><label>Jenis Cuti <span class="req">*</span></label><select id="f_jenis"><option value="">-- Pilih --</option>${JENIS_CUTI.map(j=>`<option${data.jenis===j?' selected':''}>${j}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Status</label><select id="f_status">${STATUS_CUTI.map(s=>`<option${data.status===s?' selected':''}>${s}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Tanggal Mulai <span class="req">*</span></label><input type="date" id="f_mulai" value="${data.mulai||''}" oninput="updateCalc()"></div>
+        <div class="form-group"><label>Tanggal Selesai <span class="req">*</span></label><input type="date" id="f_selesai" value="${data.selesai||''}" oninput="updateCalc()"></div>
+        <div class="form-group full"><label>Sisa Cuti (hari)</label><input type="number" id="f_sisa" placeholder="Sisa cuti" value="${data.sisa||''}"></div>
+        <div class="form-group full">
+          <label>Durasi Cuti (Hari Kerja)</label>
+          <div class="calc-box"><span class="calc-label" id="calcLabel">Isi tanggal mulai & selesai</span><span class="calc-val" id="calcVal">—</span></div>
+        </div>
+        <div class="form-group full"><label>Keterangan / Alasan</label><textarea id="f_ket" placeholder="Keterangan cuti...">${data.ket||''}</textarea></div>
+      </div>`;
+    updateCalc();
+  }
+}
+
+function openEdit(idx){openModal(idx)}
+
+function updateCalc(){
+  const m=document.getElementById('f_mulai')?.value;
+  const s=document.getElementById('f_selesai')?.value;
+  const lbl=document.getElementById('calcLabel');
+  const val=document.getElementById('calcVal');
+  if(!lbl||!val)return;
+  if(activeTab==='lembur'){
+    if(m&&s){const j=calcJam(m,s);lbl.textContent='Total Lembur';val.textContent=j.toFixed(2)+' jam';}
+    else{lbl.textContent='Isi jam mulai & selesai';val.textContent='—';}
+  } else {
+    if(m&&s){const h=calcHari(m,s);lbl.textContent='Durasi Cuti (Kecuali Akhir Pekan & Libur Nasional)';val.textContent=h+' hari';}
+    else{lbl.textContent='Isi tanggal mulai & selesai';val.textContent='—';}
+  }
+}
+
+function closeModal(){
+  document.getElementById('overlay').classList.remove('open');
+  editIdx=-1;
+}
+function handleOverlayClick(e){if(e.target===document.getElementById('overlay'))closeModal();}
+
+function saveData(){
+  const nama=document.getElementById('f_nama').value.trim();
+  const dept=document.getElementById('f_dept').value;
+  const jabatan=document.getElementById('f_jabatan')?.value.trim()||'';
+  if(!nama||!dept){alert('Harap isi Nama, dan Departemen.');return;}
+
+  if(activeTab==='lembur'){
+    const tanggal=document.getElementById('f_tanggal').value;
+    const mulai=document.getElementById('f_mulai').value;
+    const selesai=document.getElementById('f_selesai').value;
+    if(!tanggal||!mulai||!selesai){alert('Harap isi Tanggal, Jam Mulai, dan Jam Selesai.');return;}
+    const row={nama,dept,jabatan,tanggal,mulai,selesai};
+    if(editIdx>=0)lemburData[editIdx]=row; else lemburData.push(row);
+  } else {
+    const jenis=document.getElementById('f_jenis').value;
+    const mulai=document.getElementById('f_mulai').value;
+    const selesai=document.getElementById('f_selesai').value;
+    const status=document.getElementById('f_status').value;
+    const sisa=document.getElementById('f_sisa').value;
+    const ket=document.getElementById('f_ket').value;
+    if(!jenis||!mulai||!selesai){alert('Harap isi Jenis Cuti, Tgl Mulai, dan Tgl Selesai.');return;}
+    const row={nama,dept,jabatan,jenis,mulai,selesai,sisa,ket,status};
+    if(editIdx>=0)cutiData[editIdx]=row; else cutiData.push(row);
+  }
+  closeModal();renderStats();renderTable();
+  showToast(editIdx>=0?'Data berhasil diperbarui':'Data berhasil disimpan');
+}
+
+function deleteRow(idx){
+  if(!confirm('Hapus data ini?'))return;
+  if(activeTab==='lembur')lemburData.splice(idx,1); else cutiData.splice(idx,1);
+  renderStats();renderTable();showToast('Data berhasil dihapus');
+}
+
+function exportExcel(){
+  const wb=XLSX.utils.book_new();
+  const now=new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+
+  // Sheet Lembur
+  const lRows=[
+    ['FORMULIR DATA LEMBUR KARYAWAN'],
+    [`Periode: ${now}`],
+    [],
+    ['NO','NAMA KARYAWAN','DEPARTEMEN','JABATAN','TANGGAL LEMBUR','JAM MULAI','JAM SELESAI','TOTAL JAM'],
+    ...lemburData.map((r,i)=>{
+      const jam=calcJam(r.mulai,r.selesai);
+      return[i+1,r.nama,r.dept,r.jabatan,r.tanggal,r.mulai,r.selesai,parseFloat(jam.toFixed(2))];
+    }),
+    [],
+    ['','','','','','','TOTAL',
+      parseFloat(lemburData.reduce((s,r)=>s+calcJam(r.mulai,r.selesai),0).toFixed(2))]
+  ];
+  const wsl=XLSX.utils.aoa_to_sheet(lRows);
+  wsl['!cols']=[5,24,16,18,16,12,12,13].map(w=>({wch:w}));
+  wsl['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:1,c:0},e:{r:1,c:9}}];
+  XLSX.utils.book_append_sheet(wb,wsl,'Data Lembur');
+
+  // Sheet Cuti
+  const cRows=[
+    ['FORMULIR PENGAJUAN CUTI KARYAWAN'],
+    [`Periode: ${now}`],
+    [],
+    ['NO','NAMA KARYAWAN','DEPARTEMEN','JABATAN','JENIS CUTI','TGL MULAI','TGL SELESAI','JUMLAH HARI KERJA','SISA CUTI','KETERANGAN','STATUS'],
+    ...cutiData.map((r,i)=>[i+1,r.nama,r.dept,r.jabatan,r.jenis,r.mulai,r.selesai,calcHari(r.mulai,r.selesai),Number(r.sisa||0),r.ket,r.status]),
+    [],
+    ['','','','','','','','TOTAL',cutiData.reduce((s,r)=>s+calcHari(r.mulai,r.selesai),0),'','']
+  ];
+  const wsc=XLSX.utils.aoa_to_sheet(cRows);
+  wsc['!cols']=[5,24,14,18,18,14,14,15,12,24,14].map(w=>({wch:w}));
+  wsc['!merges']=[{s:{r:0,c:0},e:{r:0,c:10}},{s:{r:1,c:0},e:{r:1,c:10}}];
+  XLSX.utils.book_append_sheet(wb,wsc,'Data Cuti');
+
+  // Sheet Rekap
+  const empMap={};
+  lemburData.forEach(r=>{
+    if(!empMap[r.nama])empMap[r.nama]={nama:r.nama,jam:0};
+    empMap[r.nama].jam+=calcJam(r.mulai,r.selesai);
+  });
+  // Pastikan yang hanya mengajukan cuti juga masuk ke rekap bulanan
+  cutiData.forEach(r=>{
+    if(!empMap[r.nama])empMap[r.nama]={nama:r.nama,jam:0};
+  });
+
+  const rRows=[
+    ['REKAP LEMBUR & CUTI BULANAN'],
+    [`Periode: ${now}`],
+    [],
+    ['NO','NAMA KARYAWAN','TOTAL JAM LEMBUR','TOTAL HARI CUTI'],
+    ...Object.values(empMap).map((r,i)=>{
+      const hari=cutiData.filter(c=>c.nama===r.nama).reduce((s,c)=>s+calcHari(c.mulai,c.selesai),0);
+      return[i+1,r.nama,parseFloat(r.jam.toFixed(2)),hari];
+    })
+  ];
+  const wsr=XLSX.utils.aoa_to_sheet(rRows);
+  wsr['!cols']=[5,24,18,16].map(w=>({wch:w}));
+  wsr['!merges']=[{s:{r:0,c:0},e:{r:0,c:3}},{s:{r:1,c:0},e:{r:1,c:3}}];
+  XLSX.utils.book_append_sheet(wb,wsr,'Rekap Bulanan');
+
+  const filename=`Data_Lembur_Cuti_${new Date().toISOString().slice(0,7)}.xlsx`;
+  XLSX.writeFile(wb,filename);
+  showToast(`File "${filename}" berhasil diunduh`);
+}
+
+// Init
+updateHeader();
+renderStats();
+switchTab('lembur');
+</script>
+</body>
+</html>
