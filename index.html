@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Manajemen Lembur & Cuti</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
@@ -172,6 +172,15 @@
 const DEPT = ["IT", "HRD", "DAIFUKU", "KANEMATSU", "TTSI"];
 const JENIS_CUTI = ["Cuti Tahunan","Cuti Sakit","Cuti Melahirkan","Cuti Besar","Cuti Darurat","Cuti Haji"];
 const STATUS_CUTI = ["Pending","Disetujui","Ditolak"];
+const STATUS_LEMBUR = ["Pending","Disetujui","Ditolak"];
+const KET_LEMBUR = [
+  "Cover jam karena sakit",
+  "Cover pekerjaan karena cuti",
+  "Pekerjaan terlambat / deadline",
+  "Warifuri & Mitsumori",
+  "Nohin (pengiriman barang)",
+  "Lainnya (isi keterangan)"
+];
 
 // Daftar Hari Libur Nasional Indonesia Tahun 2026 (Format: YYYY-MM-DD)
 const HARI_LIBUR_2026 = [
@@ -198,7 +207,7 @@ let activeTab = 'lembur';
 let editIdx = -1;
 
 let lemburData = [
-  {nama:"Mery",dept:"IT",jabatan:"Staff IT",tanggal:"2025-05-01",mulai:"18:00",selesai:"22:00"},
+  {nama:"Mery",dept:"IT",jabatan:"Staff IT",tanggal:"2025-05-01",mulai:"18:00",selesai:"22:00",ket:"Cover pekerjaan karena cuti",ketLain:"",status:"Disetujui"},
 ];
 let cutiData = [
   {nama:"Mery",dept:"IT",jabatan:"Staff IT",jenis:"Cuti Tahunan",mulai:"2026-03-18",selesai:"2026-03-24",sisa:"9",ket:"Keperluan Keluarga",status:"Disetujui"},
@@ -284,10 +293,10 @@ function renderTable(){
   const filtered=data.filter(r=>r.nama.toLowerCase().includes(q));
 
   if(activeTab==='lembur'){
-    document.getElementById('tableHead').innerHTML=`<tr>${['No','Nama Karyawan','Departemen','Jabatan','Tanggal','Jam Mulai','Jam Selesai','Total Jam','Aksi'].map(h=>`<th>${h}</th>`).join('')}</tr>`;
+    document.getElementById('tableHead').innerHTML=`<tr>${['No','Nama Karyawan','Departemen','Jabatan','Tanggal','Jam Mulai','Jam Selesai','Total Jam','Keterangan','Status','Aksi'].map(h=>`<th>${h}</th>`).join('')}</tr>`;
     let totalJam=0;
     document.getElementById('tableBody').innerHTML=filtered.length===0
-      ?`<tr><td colspan="9"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Belum ada data lembur</div></div></td></tr>`
+      ?`<tr><td colspan="11"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Belum ada data lembur</div></div></td></tr>`
       :filtered.map((r,i)=>{
         const jam=calcJam(r.mulai,r.selesai);
         totalJam+=jam;
@@ -301,6 +310,8 @@ function renderTable(){
           <td class="mono">${r.mulai}</td>
           <td class="mono">${r.selesai}</td>
           <td class="bold">${jam.toFixed(2)} jam</td>
+          <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.ket==='Lainnya (isi keterangan)'?(r.ketLain||'—'):r.ket||'—'}">${r.ket==='Lainnya (isi keterangan)'?(r.ketLain||'—'):(r.ket||'—')}</td>
+          <td><span class="badge ${r.status==='Disetujui'?'badge-disetujui':r.status==='Ditolak'?'badge-ditolak':'badge-pending'}">${r.status||'Pending'}</span></td>
           <td>
             <button class="btn-edit" title="Edit" onclick="openEdit(${origIdx})">✏️</button>
             <button class="btn-danger" title="Hapus" onclick="deleteRow(${origIdx})">🗑️</button>
@@ -308,7 +319,7 @@ function renderTable(){
       }).join('');
     document.getElementById('tableFoot').innerHTML=filtered.length>0?`<tr>
       <td colspan="7" class="right">Total</td>
-      <td class="bold">${totalJam.toFixed(2)} jam</td><td></td></tr>`:'';
+      <td class="bold">${totalJam.toFixed(2)} jam</td><td></td><td></td><td></td></tr>`:'';
   } else {
     document.getElementById('tableHead').innerHTML=`<tr>${['No','Nama','Departemen','Jenis Cuti','Tgl Mulai','Tgl Selesai','Hari Kerja','Keterangan','Status','Aksi'].map(h=>`<th>${h}</th>`).join('')}</tr>`;
     let totalHari=0;
@@ -365,6 +376,16 @@ function openModal(idx=-1){
           <label>Kalkulasi Otomatis</label>
           <div class="calc-box"><span class="calc-label" id="calcLabel">Isi jam mulai & selesai</span><span class="calc-val" id="calcVal">—</span></div>
         </div>
+        <div class="form-group full"><label>Keterangan Lembur <span class="req">*</span></label>
+          <select id="f_ket" onchange="toggleKetLain()"><option value="">-- Pilih Keterangan --</option>${KET_LEMBUR.map(k=>`<option${data.ket===k?' selected':''}>${k}</option>`).join('')}</select>
+        </div>
+        <div class="form-group full" id="ketLainWrap" style="display:${data.ket==='Lainnya (isi keterangan)'?'flex':'none'}">
+          <label>Isi Keterangan Lainnya</label>
+          <textarea id="f_ket_lain" placeholder="Tulis keterangan lembur...">${data.ketLain||''}</textarea>
+        </div>
+        <div class="form-group full"><label>Status Persetujuan Atasan</label>
+          <select id="f_status_lembur">${STATUS_LEMBUR.map(s=>`<option${(data.status||'Pending')===s?' selected':''}>${s}</option>`).join('')}</select>
+        </div>
       </div>`;
     updateCalc();
   } else {
@@ -389,6 +410,12 @@ function openModal(idx=-1){
 }
 
 function openEdit(idx){openModal(idx)}
+
+function toggleKetLain(){
+  const v=document.getElementById('f_ket')?.value;
+  const w=document.getElementById('ketLainWrap');
+  if(w) w.style.display=v==='Lainnya (isi keterangan)'?'flex':'none';
+}
 
 function updateCalc(){
   const m=document.getElementById('f_mulai')?.value;
@@ -421,8 +448,12 @@ function saveData(){
     const tanggal=document.getElementById('f_tanggal').value;
     const mulai=document.getElementById('f_mulai').value;
     const selesai=document.getElementById('f_selesai').value;
+    const ket=document.getElementById('f_ket').value;
+    const ketLain=document.getElementById('f_ket_lain')?.value||'';
+    const statusLembur=document.getElementById('f_status_lembur').value;
     if(!tanggal||!mulai||!selesai){alert('Harap isi Tanggal, Jam Mulai, dan Jam Selesai.');return;}
-    const row={nama,dept,jabatan,tanggal,mulai,selesai};
+    if(!ket){alert('Harap pilih Keterangan Lembur.');return;}
+    const row={nama,dept,jabatan,tanggal,mulai,selesai,ket,ketLain,status:statusLembur};
     if(editIdx>=0)lemburData[editIdx]=row; else lemburData.push(row);
   } else {
     const jenis=document.getElementById('f_jenis').value;
@@ -446,68 +477,246 @@ function deleteRow(idx){
 }
 
 function exportExcel(){
-  const wb=XLSX.utils.book_new();
-  const now=new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+  const wb = XLSX.utils.book_new();
+  const now = new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'});
 
-  // Sheet Lembur
-  const lRows=[
-    ['FORMULIR DATA LEMBUR KARYAWAN'],
-    [`Periode: ${now}`],
-    [],
-    ['NO','NAMA KARYAWAN','DEPARTEMEN','JABATAN','TANGGAL LEMBUR','JAM MULAI','JAM SELESAI','TOTAL JAM'],
-    ...lemburData.map((r,i)=>{
+  // ─── HELPER: terapkan style ke range sel ───────────────────────────────────
+  function setStyle(ws, addr, style){
+    if(!ws[addr]) ws[addr]={t:'z',v:''};
+    ws[addr].s = style;
+  }
+  function styleRange(ws, r1,c1,r2,c2, style){
+    for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++){
+      const addr=XLSX.utils.encode_cell({r,c});
+      if(!ws[addr]) ws[addr]={t:'z',v:''};
+      ws[addr].s=style;
+    }
+  }
+
+  // ─── STYLE DEFINITIONS ────────────────────────────────────────────────────
+  const borderAll={
+    top:{style:'thin',color:{rgb:'B0C4DE'}},
+    bottom:{style:'thin',color:{rgb:'B0C4DE'}},
+    left:{style:'thin',color:{rgb:'B0C4DE'}},
+    right:{style:'thin',color:{rgb:'B0C4DE'}}
+  };
+  const borderMedium={
+    top:{style:'medium',color:{rgb:'1E3A5F'}},
+    bottom:{style:'medium',color:{rgb:'1E3A5F'}},
+    left:{style:'medium',color:{rgb:'1E3A5F'}},
+    right:{style:'medium',color:{rgb:'1E3A5F'}}
+  };
+
+  const sTitle=(bg)=>({font:{bold:true,sz:15,color:{rgb:'FFFFFF'},name:'Calibri'},
+    fill:{fgColor:{rgb:bg}},alignment:{horizontal:'center',vertical:'center'},
+    border:borderMedium});
+  const sSub=(bg)=>({font:{italic:true,sz:10,color:{rgb:'FFFFFF'},name:'Calibri'},
+    fill:{fgColor:{rgb:bg}},alignment:{horizontal:'center',vertical:'center'}});
+  const sHeader=(bg)=>({font:{bold:true,sz:10,color:{rgb:'FFFFFF'},name:'Calibri'},
+    fill:{fgColor:{rgb:bg}},alignment:{horizontal:'center',vertical:'center',wrapText:true},
+    border:borderAll});
+  const sDataEven={font:{sz:10,name:'Calibri'},fill:{fgColor:{rgb:'EBF4FA'}},
+    alignment:{vertical:'center',wrapText:false},border:borderAll};
+  const sDataOdd={font:{sz:10,name:'Calibri'},fill:{fgColor:{rgb:'FFFFFF'}},
+    alignment:{vertical:'center',wrapText:false},border:borderAll};
+  const sDataCenter=(even)=>({...( even?sDataEven:sDataOdd),alignment:{horizontal:'center',vertical:'center'}});
+  const sDataRight=(even)=>({...( even?sDataEven:sDataOdd),alignment:{horizontal:'right',vertical:'center'}});
+  const sFooter={font:{bold:true,sz:10,color:{rgb:'1E3A5F'},name:'Calibri'},
+    fill:{fgColor:{rgb:'D6EAF8'}},alignment:{horizontal:'right',vertical:'center'},border:borderAll};
+  const sFooterVal={font:{bold:true,sz:10,color:{rgb:'1E3A5F'},name:'Calibri'},
+    fill:{fgColor:{rgb:'D6EAF8'}},alignment:{horizontal:'center',vertical:'center'},border:borderAll};
+  const sFooterEmpty={font:{sz:10},fill:{fgColor:{rgb:'D6EAF8'}},border:borderAll};
+
+  // Status badge styles
+  const sDisetujui={font:{bold:true,sz:10,color:{rgb:'065F46'},name:'Calibri'},
+    fill:{fgColor:{rgb:'D1FAE5'}},alignment:{horizontal:'center',vertical:'center'},border:borderAll};
+  const sPending={font:{bold:true,sz:10,color:{rgb:'92400E'},name:'Calibri'},
+    fill:{fgColor:{rgb:'FEF3C7'}},alignment:{horizontal:'center',vertical:'center'},border:borderAll};
+  const sDitolak={font:{bold:true,sz:10,color:{rgb:'991B1B'},name:'Calibri'},
+    fill:{fgColor:{rgb:'FEE2E2'}},alignment:{horizontal:'center',vertical:'center'},border:borderAll};
+  function statusStyle(s){ return s==='Disetujui'?sDisetujui:s==='Ditolak'?sDitolak:sPending; }
+
+  // ─── SHEET 1: DATA LEMBUR ─────────────────────────────────────────────────
+  {
+    const LCOLS = 10; // jumlah kolom
+    const headers = ['NO','NAMA KARYAWAN','DEPARTEMEN','JABATAN','TANGGAL LEMBUR','JAM MULAI','JAM SELESAI','TOTAL JAM','KETERANGAN','STATUS'];
+    const dataRows = lemburData.map((r,i)=>{
       const jam=calcJam(r.mulai,r.selesai);
-      return[i+1,r.nama,r.dept,r.jabatan,r.tanggal,r.mulai,r.selesai,parseFloat(jam.toFixed(2))];
-    }),
-    [],
-    ['','','','','','','TOTAL',
-      parseFloat(lemburData.reduce((s,r)=>s+calcJam(r.mulai,r.selesai),0).toFixed(2))]
-  ];
-  const wsl=XLSX.utils.aoa_to_sheet(lRows);
-  wsl['!cols']=[5,24,16,18,16,12,12,13].map(w=>({wch:w}));
-  wsl['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:1,c:0},e:{r:1,c:9}}];
-  XLSX.utils.book_append_sheet(wb,wsl,'Data Lembur');
+      const ket=r.ket==='Lainnya (isi keterangan)'?(r.ketLain||r.ket):r.ket||'';
+      return[i+1,r.nama,r.dept,r.jabatan,r.tanggal,r.mulai,r.selesai,parseFloat(jam.toFixed(2)),ket,r.status||'Pending'];
+    });
+    const totalJamL=parseFloat(lemburData.reduce((s,r)=>s+calcJam(r.mulai,r.selesai),0).toFixed(2));
 
-  // Sheet Cuti
-  const cRows=[
-    ['FORMULIR PENGAJUAN CUTI KARYAWAN'],
-    [`Periode: ${now}`],
-    [],
-    ['NO','NAMA KARYAWAN','DEPARTEMEN','JABATAN','JENIS CUTI','TGL MULAI','TGL SELESAI','JUMLAH HARI KERJA','SISA CUTI','KETERANGAN','STATUS'],
-    ...cutiData.map((r,i)=>[i+1,r.nama,r.dept,r.jabatan,r.jenis,r.mulai,r.selesai,calcHari(r.mulai,r.selesai),Number(r.sisa||0),r.ket,r.status]),
-    [],
-    ['','','','','','','','TOTAL',cutiData.reduce((s,r)=>s+calcHari(r.mulai,r.selesai),0),'','']
-  ];
-  const wsc=XLSX.utils.aoa_to_sheet(cRows);
-  wsc['!cols']=[5,24,14,18,18,14,14,15,12,24,14].map(w=>({wch:w}));
-  wsc['!merges']=[{s:{r:0,c:0},e:{r:0,c:10}},{s:{r:1,c:0},e:{r:1,c:10}}];
-  XLSX.utils.book_append_sheet(wb,wsc,'Data Cuti');
+    const aoa=[
+      ['DATA LEMBUR KARYAWAN',...Array(LCOLS-1).fill('')],
+      [`Periode: ${now}`,...Array(LCOLS-1).fill('')],
+      Array(LCOLS).fill(''),
+      headers,
+      ...dataRows,
+      Array(LCOLS).fill(''),
+      ['','','','','','','TOTAL',totalJamL,'','']
+    ];
 
-  // Sheet Rekap
-  const empMap={};
-  lemburData.forEach(r=>{
-    if(!empMap[r.nama])empMap[r.nama]={nama:r.nama,jam:0};
-    empMap[r.nama].jam+=calcJam(r.mulai,r.selesai);
-  });
-  // Pastikan yang hanya mengajukan cuti juga masuk ke rekap bulanan
-  cutiData.forEach(r=>{
-    if(!empMap[r.nama])empMap[r.nama]={nama:r.nama,jam:0};
-  });
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:5},{wch:24},{wch:14},{wch:18},{wch:14},{wch:10},{wch:10},{wch:11},{wch:30},{wch:14}];
+    ws['!rows']=[{hpt:32},{hpt:20},{hpt:6},{hpt:28},...dataRows.map(()=>({hpt:20})),{hpt:6},{hpt:22}];
+    ws['!merges']=[
+      {s:{r:0,c:0},e:{r:0,c:LCOLS-1}},
+      {s:{r:1,c:0},e:{r:1,c:LCOLS-1}}
+    ];
 
-  const rRows=[
-    ['REKAP LEMBUR & CUTI BULANAN'],
-    [`Periode: ${now}`],
-    [],
-    ['NO','NAMA KARYAWAN','TOTAL JAM LEMBUR','TOTAL HARI CUTI'],
-    ...Object.values(empMap).map((r,i)=>{
+    // Title & subtitle
+    styleRange(ws,0,0,0,LCOLS-1,sTitle('0D2137'));
+    styleRange(ws,1,0,1,LCOLS-1,sSub('1E3A5F'));
+    styleRange(ws,2,0,2,LCOLS-1,{fill:{fgColor:{rgb:'F8FAFC'}}});
+
+    // Headers
+    for(let c=0;c<LCOLS;c++) setStyle(ws,XLSX.utils.encode_cell({r:3,c}),sHeader('2E86AB'));
+
+    // Data rows
+    dataRows.forEach((row,i)=>{
+      const r=i+4;
+      const even=i%2===0;
+      row.forEach((val,c)=>{
+        const addr=XLSX.utils.encode_cell({r,c});
+        if(!ws[addr]) ws[addr]={t:'z',v:''};
+        if(c===9){ // Status col
+          ws[addr].s=statusStyle(val);
+        } else if(c===0||c===5||c===6||c===7){
+          ws[addr].s=sDataCenter(even);
+        } else {
+          ws[addr].s=even?sDataEven:sDataOdd;
+        }
+      });
+    });
+
+    // Footer
+    const footR=4+dataRows.length+1;
+    for(let c=0;c<LCOLS;c++){
+      const addr=XLSX.utils.encode_cell({r:footR,c});
+      if(!ws[addr]) ws[addr]={t:'z',v:''};
+      if(c===6) ws[addr].s=sFooter;
+      else if(c===7) ws[addr].s=sFooterVal;
+      else ws[addr].s=sFooterEmpty;
+    }
+
+    XLSX.utils.book_append_sheet(wb,ws,'Data Lembur');
+  }
+
+  // ─── SHEET 2: DATA CUTI ───────────────────────────────────────────────────
+  {
+    const CCOLS = 11;
+    const headers = ['NO','NAMA KARYAWAN','DEPARTEMEN','JABATAN','JENIS CUTI','TGL MULAI','TGL SELESAI','HARI KERJA','SISA CUTI','KETERANGAN','STATUS'];
+    const dataRows = cutiData.map((r,i)=>[
+      i+1,r.nama,r.dept,r.jabatan,r.jenis,r.mulai,r.selesai,
+      calcHari(r.mulai,r.selesai),Number(r.sisa||0),r.ket||'',r.status
+    ]);
+    const totalHariC=cutiData.reduce((s,r)=>s+calcHari(r.mulai,r.selesai),0);
+
+    const aoa=[
+      ['DATA CUTI KARYAWAN',...Array(CCOLS-1).fill('')],
+      [`Periode: ${now}`,...Array(CCOLS-1).fill('')],
+      Array(CCOLS).fill(''),
+      headers,
+      ...dataRows,
+      Array(CCOLS).fill(''),
+      ['','','','','','','TOTAL',totalHariC,'','','']
+    ];
+
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:5},{wch:22},{wch:13},{wch:16},{wch:16},{wch:12},{wch:12},{wch:11},{wch:10},{wch:24},{wch:13}];
+    ws['!rows']=[{hpt:32},{hpt:20},{hpt:6},{hpt:28},...dataRows.map(()=>({hpt:20})),{hpt:6},{hpt:22}];
+    ws['!merges']=[
+      {s:{r:0,c:0},e:{r:0,c:CCOLS-1}},
+      {s:{r:1,c:0},e:{r:1,c:CCOLS-1}}
+    ];
+
+    styleRange(ws,0,0,0,CCOLS-1,sTitle('0A1F14'));
+    styleRange(ws,1,0,1,CCOLS-1,sSub('1A3A2A'));
+    styleRange(ws,2,0,2,CCOLS-1,{fill:{fgColor:{rgb:'F8FAFC'}}});
+    for(let c=0;c<CCOLS;c++) setStyle(ws,XLSX.utils.encode_cell({r:3,c}),sHeader('2D6A4F'));
+
+    dataRows.forEach((row,i)=>{
+      const r=i+4;
+      const even=i%2===0;
+      const evenFill={font:{sz:10,name:'Calibri'},fill:{fgColor:{rgb:'EAFAF1'}},alignment:{vertical:'center'},border:borderAll};
+      const oddFill={font:{sz:10,name:'Calibri'},fill:{fgColor:{rgb:'FFFFFF'}},alignment:{vertical:'center'},border:borderAll};
+      const cFill=(even)=>({...(even?evenFill:oddFill),alignment:{horizontal:'center',vertical:'center'}});
+      row.forEach((val,c)=>{
+        const addr=XLSX.utils.encode_cell({r,c});
+        if(!ws[addr]) ws[addr]={t:'z',v:''};
+        if(c===10){ ws[addr].s=statusStyle(val); }
+        else if(c===0||c===5||c===6||c===7||c===8){ ws[addr].s=cFill(even); }
+        else { ws[addr].s=even?evenFill:oddFill; }
+      });
+    });
+
+    const footR=4+dataRows.length+1;
+    for(let c=0;c<CCOLS;c++){
+      const addr=XLSX.utils.encode_cell({r:footR,c});
+      if(!ws[addr]) ws[addr]={t:'z',v:''};
+      const sF2={font:{bold:true,sz:10,color:{rgb:'1A3A2A'},name:'Calibri'},fill:{fgColor:{rgb:'D5F5E3'}},alignment:{horizontal:'right',vertical:'center'},border:borderAll};
+      const sF2V={...sF2,alignment:{horizontal:'center',vertical:'center'}};
+      const sF2E={font:{sz:10},fill:{fgColor:{rgb:'D5F5E3'}},border:borderAll};
+      if(c===6) ws[addr].s=sF2;
+      else if(c===7) ws[addr].s=sF2V;
+      else ws[addr].s=sF2E;
+    }
+
+    XLSX.utils.book_append_sheet(wb,ws,'Data Cuti');
+  }
+
+  // ─── SHEET 3: REKAP BULANAN ───────────────────────────────────────────────
+  {
+    const RCOLS = 4;
+    const empMap={};
+    lemburData.forEach(r=>{
+      if(!empMap[r.nama])empMap[r.nama]={nama:r.nama,jam:0};
+      empMap[r.nama].jam+=calcJam(r.mulai,r.selesai);
+    });
+    cutiData.forEach(r=>{ if(!empMap[r.nama])empMap[r.nama]={nama:r.nama,jam:0}; });
+
+    const dataRows=Object.values(empMap).map((r,i)=>{
       const hari=cutiData.filter(c=>c.nama===r.nama).reduce((s,c)=>s+calcHari(c.mulai,c.selesai),0);
       return[i+1,r.nama,parseFloat(r.jam.toFixed(2)),hari];
-    })
-  ];
-  const wsr=XLSX.utils.aoa_to_sheet(rRows);
-  wsr['!cols']=[5,24,18,16].map(w=>({wch:w}));
-  wsr['!merges']=[{s:{r:0,c:0},e:{r:0,c:3}},{s:{r:1,c:0},e:{r:1,c:3}}];
-  XLSX.utils.book_append_sheet(wb,wsr,'Rekap Bulanan');
+    });
+
+    const aoa=[
+      ['REKAP LEMBUR & CUTI BULANAN',...Array(RCOLS-1).fill('')],
+      [`Periode: ${now}`,...Array(RCOLS-1).fill('')],
+      Array(RCOLS).fill(''),
+      ['NO','NAMA KARYAWAN','TOTAL JAM LEMBUR','TOTAL HARI CUTI'],
+      ...dataRows
+    ];
+
+    const ws=XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols']=[{wch:5},{wch:26},{wch:20},{wch:18}];
+    ws['!rows']=[{hpt:32},{hpt:20},{hpt:6},{hpt:28},...dataRows.map(()=>({hpt:20}))];
+    ws['!merges']=[
+      {s:{r:0,c:0},e:{r:0,c:RCOLS-1}},
+      {s:{r:1,c:0},e:{r:1,c:RCOLS-1}}
+    ];
+
+    styleRange(ws,0,0,0,RCOLS-1,sTitle('2C3E50'));
+    styleRange(ws,1,0,1,RCOLS-1,sSub('34495E'));
+    styleRange(ws,2,0,2,RCOLS-1,{fill:{fgColor:{rgb:'F8FAFC'}}});
+    for(let c=0;c<RCOLS;c++) setStyle(ws,XLSX.utils.encode_cell({r:3,c}),sHeader('5D6D7E'));
+
+    dataRows.forEach((row,i)=>{
+      const r=i+4;
+      const even=i%2===0;
+      const eF={font:{sz:10,name:'Calibri'},fill:{fgColor:{rgb:'ECF0F1'}},alignment:{vertical:'center'},border:borderAll};
+      const oF={font:{sz:10,name:'Calibri'},fill:{fgColor:{rgb:'FFFFFF'}},alignment:{vertical:'center'},border:borderAll};
+      const cF=(even)=>({...(even?eF:oF),alignment:{horizontal:'center',vertical:'center'}});
+      row.forEach((val,c)=>{
+        const addr=XLSX.utils.encode_cell({r,c});
+        if(!ws[addr]) ws[addr]={t:'z',v:''};
+        ws[addr].s=c===0||c===2||c===3?cF(even):(even?eF:oF);
+      });
+    });
+
+    XLSX.utils.book_append_sheet(wb,ws,'Rekap Bulanan');
+  }
 
   const filename=`Data_Lembur_Cuti_${new Date().toISOString().slice(0,7)}.xlsx`;
   XLSX.writeFile(wb,filename);
